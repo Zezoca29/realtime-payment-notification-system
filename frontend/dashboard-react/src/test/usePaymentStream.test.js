@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { usePaymentStream } from '../../hooks/usePaymentStream'
+import { usePaymentStream } from '../hooks/usePaymentStream'
 
 // ── Mock @stomp/stompjs and sockjs-client ─────────────────────────────────────
 // We capture the callbacks provided to the Client so tests can trigger them

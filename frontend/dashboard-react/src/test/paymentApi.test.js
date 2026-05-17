@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { sendPayment } from '../../services/paymentApi'
+import { sendPayment } from '../services/paymentApi'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch

@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { PaymentForm } from '../../components/PaymentForm'
+import { PaymentForm } from '../components/PaymentForm'
 
 // Mock the paymentApi module
-vi.mock('../../services/paymentApi', () => ({
+vi.mock('../services/paymentApi', () => ({
   sendPayment: vi.fn(),
 }))
 
-import { sendPayment } from '../../services/paymentApi'
+import { sendPayment } from '../services/paymentApi'
 
 describe('PaymentForm', () => {
   beforeEach(() => {
