@@ -46,8 +46,9 @@ export function PaymentForm({ onSent }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Customer ID</label>
+          <label htmlFor="customerId" className="block text-xs text-gray-400 mb-1">Customer ID</label>
           <input
+            id="customerId"
             name="customerId"
             value={form.customerId}
             onChange={handleChange}
@@ -56,8 +57,9 @@ export function PaymentForm({ onSent }) {
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Amount</label>
+          <label htmlFor="amount" className="block text-xs text-gray-400 mb-1">Amount</label>
           <input
+            id="amount"
             name="amount"
             type="number"
             step="0.01"
@@ -69,8 +71,9 @@ export function PaymentForm({ onSent }) {
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Currency</label>
+          <label htmlFor="currency" className="block text-xs text-gray-400 mb-1">Currency</label>
           <select
+            id="currency"
             name="currency"
             value={form.currency}
             onChange={handleChange}
@@ -80,8 +83,9 @@ export function PaymentForm({ onSent }) {
           </select>
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Status</label>
+          <label htmlFor="status" className="block text-xs text-gray-400 mb-1">Status</label>
           <select
+            id="status"
             name="status"
             value={form.status}
             onChange={handleChange}
