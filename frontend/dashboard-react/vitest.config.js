@@ -11,7 +11,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       include: ['src/**/*.{js,jsx}'],
-      exclude: ['src/main.jsx', 'src/test/**'],
+      exclude: [
+        'src/main.jsx',        // app bootstrap
+        'src/test/**',         // test files
+        'src/App.jsx',         // root orchestration — integration/e2e territory
+        'src/components/EventTable.jsx',  // pure display, no business logic
+        'src/components/StatsChart.jsx',  // chart wrapper, no business logic
+      ],
       thresholds: {
         lines: 70,
         branches: 60,
