@@ -1,3 +1,6 @@
+# Load secrets from .env (never commit .env to version control)
+# Copy .env.example → .env and fill in your values before running.
+
 services:
 
   # ─── Infrastructure ────────────────────────────────────────────────────────
@@ -59,17 +62,21 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: payments_db
-      POSTGRES_USER: payments_user
-      POSTGRES_PASSWORD: payments_pass
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U payments_user -d payments_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   # ─── Backend Services ───────────────────────────────────────────────────────
 
@@ -86,11 +93,17 @@ services:
     ports:
       - "8081:8081"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payments_db
-      SPRING_DATASOURCE_USERNAME: payments_user
-      SPRING_DATASOURCE_PASSWORD: payments_pass
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: ${ZIPKIN_BASE_URL}/api/v2/spans
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   notification-consumer:
     build:
@@ -105,21 +118,36 @@ services:
     ports:
       - "8082:8082"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payments_db
-      SPRING_DATASOURCE_USERNAME: payments_user
-      SPRING_DATASOURCE_PASSWORD: payments_pass
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       GATEWAY_URL: http://websocket-gateway:8083
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: ${ZIPKIN_BASE_URL}/api/v2/spans
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   websocket-gateway:
     build:
       context: .
       dockerfile: ./backend/websocket-gateway/Dockerfile
     container_name: websocket-gateway
+    depends_on:
+      - zipkin
     ports:
       - "8083:8083"
+    environment:
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: ${ZIPKIN_BASE_URL}/api/v2/spans
+      SECURITY_INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
   # ─── Frontend ───────────────────────────────────────────────────────────────
 
@@ -134,5 +162,52 @@ services:
       - "3000:80"
     restart: on-failure
 
+  # ─── Observability ──────────────────────────────────────────────────────────
+
+  zipkin:
+    image: openzipkin/zipkin:3.4
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    restart: on-failure
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - payment-producer
+      - notification-consumer
+      - websocket-gateway
+    restart: on-failure
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    depends_on:
+      - prometheus
+    restart: on-failure
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

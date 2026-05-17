@@ -1,0 +1,193 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. Build & test shared-kernel first (dependency for all other modules)
+  # ────────────────────────────────────────────────────────────────────────────
+  shared-kernel:
+    name: Build shared-kernel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Install shared-kernel to local Maven cache
+        run: mvn -f backend/shared-kernel/pom.xml install -DskipTests --no-transfer-progress
+
+      - name: Cache shared-kernel JAR
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository/com/zez/shared-kernel
+          key: shared-kernel-${{ hashFiles('backend/shared-kernel/**') }}
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. Test payment-producer (Testcontainers — real Kafka + PostgreSQL)
+  # ────────────────────────────────────────────────────────────────────────────
+  test-payment-producer:
+    name: Test payment-producer
+    runs-on: ubuntu-latest
+    needs: shared-kernel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Restore shared-kernel
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.m2/repository/com/zez/shared-kernel
+          key: shared-kernel-${{ hashFiles('backend/shared-kernel/**') }}
+
+      - name: Test
+        run: mvn -f backend/payment-producer/pom.xml verify --no-transfer-progress
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payment-producer-test-reports
+          path: backend/payment-producer/target/surefire-reports/
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. Test notification-consumer (Testcontainers — real Kafka + PostgreSQL)
+  # ────────────────────────────────────────────────────────────────────────────
+  test-notification-consumer:
+    name: Test notification-consumer
+    runs-on: ubuntu-latest
+    needs: shared-kernel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Restore shared-kernel
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.m2/repository/com/zez/shared-kernel
+          key: shared-kernel-${{ hashFiles('backend/shared-kernel/**') }}
+
+      - name: Test
+        run: mvn -f backend/notification-consumer/pom.xml verify --no-transfer-progress
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-consumer-test-reports
+          path: backend/notification-consumer/target/surefire-reports/
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. Frontend — lint + unit tests
+  # ────────────────────────────────────────────────────────────────────────────
+  test-frontend:
+    name: Test frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/dashboard-react
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/dashboard-react/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/dashboard-react/coverage/
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. Security scanning — filesystem + container images
+  # ────────────────────────────────────────────────────────────────────────────
+  security-scan:
+    name: Security scan (Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan filesystem for secrets and vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. Docker build validation (no push on PRs)
+  # ────────────────────────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker build validation
+    runs-on: ubuntu-latest
+    needs: [test-payment-producer, test-notification-consumer, test-frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Restore shared-kernel
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build shared-kernel
+        run: mvn -f backend/shared-kernel/pom.xml install -DskipTests --no-transfer-progress
+
+      - name: Build Docker images (no push)
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          cp .env.example .env
+          # Replace placeholders with dummy values for build-time validation
+          sed -i 's/<strong-password>/ci-dummy-pass/g' .env
+          sed -i 's/<generate-with-openssl-rand-hex-32>/ci-dummy-key-0123456789abcdef0123456789ab/g' .env
+          docker compose build --no-cache

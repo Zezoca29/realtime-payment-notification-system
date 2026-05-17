@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'local'
+    env: 'development'
+
+scrape_configs:
+
+  - job_name: 'payment-producer'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['payment-producer:8081']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'payment-producer'
+
+  - job_name: 'notification-consumer'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['notification-consumer:8082']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'notification-consumer'
+
+  - job_name: 'websocket-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['websocket-gateway:8083']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'websocket-gateway'

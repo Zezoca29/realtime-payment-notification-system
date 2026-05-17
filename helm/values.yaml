@@ -1,0 +1,88 @@
+# =============================================================================
+# Default values — override per environment with values-prod.yaml etc.
+# =============================================================================
+
+global:
+  imageRegistry: ""       # e.g. ghcr.io/your-org
+  imageTag: "latest"
+
+# ── Namespace ─────────────────────────────────────────────────────────────────
+namespace: payments
+
+# ── Secrets (override in CI/CD — never commit real values) ───────────────────
+secrets:
+  postgresPassword: "CHANGE_ME"
+  internalApiKey: "CHANGE_ME"
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+postgres:
+  image: postgres:16-alpine
+  db: payments_db
+  user: payments_user
+  storage: 5Gi
+  resources:
+    requests: { memory: "256Mi", cpu: "100m" }
+    limits:   { memory: "512Mi", cpu: "500m" }
+
+# ── Kafka (single-broker dev setup) ──────────────────────────────────────────
+kafka:
+  image: confluentinc/cp-kafka:7.6.1
+  zookeeperImage: confluentinc/cp-zookeeper:7.6.1
+  resources:
+    requests: { memory: "512Mi", cpu: "200m" }
+    limits:   { memory: "1Gi",   cpu: "1000m" }
+
+# ── payment-producer ─────────────────────────────────────────────────────────
+paymentProducer:
+  image: payment-producer
+  replicaCount: 2
+  port: 8081
+  resources:
+    requests: { memory: "256Mi", cpu: "100m" }
+    limits:   { memory: "512Mi", cpu: "500m" }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+# ── notification-consumer ─────────────────────────────────────────────────────
+notificationConsumer:
+  image: notification-consumer
+  replicaCount: 2
+  port: 8082
+  resources:
+    requests: { memory: "256Mi", cpu: "100m" }
+    limits:   { memory: "512Mi", cpu: "500m" }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# ── websocket-gateway ─────────────────────────────────────────────────────────
+websocketGateway:
+  image: websocket-gateway
+  replicaCount: 2
+  port: 8083
+  resources:
+    requests: { memory: "128Mi", cpu: "50m" }
+    limits:   { memory: "256Mi", cpu: "250m" }
+
+# ── frontend ──────────────────────────────────────────────────────────────────
+frontend:
+  image: frontend
+  replicaCount: 2
+  port: 80
+  resources:
+    requests: { memory: "32Mi",  cpu: "10m" }
+    limits:   { memory: "64Mi",  cpu: "100m" }
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: payments.example.com
+  tls:
+    enabled: true
+    secretName: payments-tls

@@ -1,0 +1,195 @@
+# ── payment-producer Deployment ───────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-producer
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: payment-producer
+spec:
+  replicas: {{ .Values.paymentProducer.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-producer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-producer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "{{ .Values.paymentProducer.port }}"
+    spec:
+      containers:
+        - name: payment-producer
+          image: {{ include "payment-system.image" (dict "global" .Values.global "image" .Values.paymentProducer.image) }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ .Values.paymentProducer.port }}
+          envFrom:
+            - configMapRef:
+                name: payment-system-config
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: payment-system-secrets
+                  key: POSTGRES_PASSWORD
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: payment-system-secrets
+                  key: INTERNAL_API_KEY
+          resources:
+            {{- toYaml .Values.paymentProducer.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.paymentProducer.port }}
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.paymentProducer.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 5
+---
+# ── notification-consumer Deployment ─────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-consumer
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: notification-consumer
+spec:
+  replicas: {{ .Values.notificationConsumer.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-consumer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: notification-consumer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "{{ .Values.notificationConsumer.port }}"
+    spec:
+      containers:
+        - name: notification-consumer
+          image: {{ include "payment-system.image" (dict "global" .Values.global "image" .Values.notificationConsumer.image) }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ .Values.notificationConsumer.port }}
+          envFrom:
+            - configMapRef:
+                name: payment-system-config
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: payment-system-secrets
+                  key: POSTGRES_PASSWORD
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: payment-system-secrets
+                  key: INTERNAL_API_KEY
+          resources:
+            {{- toYaml .Values.notificationConsumer.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.notificationConsumer.port }}
+            initialDelaySeconds: 45
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.notificationConsumer.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 5
+---
+# ── websocket-gateway Deployment ─────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websocket-gateway
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: websocket-gateway
+spec:
+  replicas: {{ .Values.websocketGateway.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: websocket-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: websocket-gateway
+    spec:
+      containers:
+        - name: websocket-gateway
+          image: {{ include "payment-system.image" (dict "global" .Values.global "image" .Values.websocketGateway.image) }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ .Values.websocketGateway.port }}
+          env:
+            - name: MANAGEMENT_ZIPKIN_TRACING_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: payment-system-config
+                  key: MANAGEMENT_ZIPKIN_TRACING_ENDPOINT
+            - name: SECURITY_INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: payment-system-secrets
+                  key: INTERNAL_API_KEY
+          resources:
+            {{- toYaml .Values.websocketGateway.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.websocketGateway.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+# ── frontend Deployment ───────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: {{ include "payment-system.image" (dict "global" .Values.global "image" .Values.frontend.image) }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ .Values.frontend.port }}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.frontend.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10

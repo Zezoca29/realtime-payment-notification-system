@@ -1,0 +1,47 @@
+{{- if .Values.paymentProducer.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: payment-producer-hpa
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: payment-producer
+  minReplicas: {{ .Values.paymentProducer.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.paymentProducer.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.paymentProducer.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+---
+{{- if .Values.notificationConsumer.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: notification-consumer-hpa
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: notification-consumer
+  minReplicas: {{ .Values.notificationConsumer.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.notificationConsumer.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.notificationConsumer.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

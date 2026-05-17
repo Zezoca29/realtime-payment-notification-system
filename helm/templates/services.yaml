@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-producer
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: payment-producer
+  ports:
+    - port: {{ .Values.paymentProducer.port }}
+      targetPort: {{ .Values.paymentProducer.port }}
+      name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-consumer
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: notification-consumer
+  ports:
+    - port: {{ .Values.notificationConsumer.port }}
+      targetPort: {{ .Values.notificationConsumer.port }}
+      name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: websocket-gateway
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: websocket-gateway
+  ports:
+    - port: {{ .Values.websocketGateway.port }}
+      targetPort: {{ .Values.websocketGateway.port }}
+      name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "payment-system.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: frontend
+  ports:
+    - port: 80
+      targetPort: {{ .Values.frontend.port }}
+      name: http

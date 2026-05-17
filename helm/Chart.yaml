@@ -1,0 +1,15 @@
+apiVersion: v2
+name: payment-notification-system
+description: Realtime Payment Notification System — Helm chart for Kubernetes deployment
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+keywords:
+  - kafka
+  - payments
+  - spring-boot
+  - websocket
+
+maintainers:
+  - name: ZEZ Engineering
